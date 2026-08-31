@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Generate OpenWrt and NETGEAR network configuration commands with visible change-risk guidance.">
+    <title>Network Command Helper</title>
+    <link rel="stylesheet" href="assets/css/app.css">
+
+    <script defer src="assets/js/core/config.js"></script>
+    <script defer src="assets/js/core/utils.js"></script>
+    <script defer src="assets/js/core/state.js"></script>
+    <script defer src="assets/js/core/risk.js"></script>
+    <script defer src="assets/js/presets/openwrt.js"></script>
+    <script defer src="assets/js/generators/openwrt-vlan.js"></script>
+    <script defer src="assets/js/generators/openwrt-wireless.js"></script>
+    <script defer src="assets/js/generators/netgear.js"></script>
+    <script defer src="assets/js/app.js"></script>
+</head>
+<body class="level-simple">
+<div class="shell" id="app">
+
+    <section class="hero">
+        <div>
+            <div class="eyebrow">Homelab network tooling</div>
+            <h1>Network Command Helper</h1>
+            <p>
+                Build readable OpenWrt and NETGEAR commands from intent rather than memorising two different configuration syntaxes.
+                Choose an operating level, preview the exact commands, and review change risk before applying anything.
+            </p>
+        </div>
+        <div class="badge">● Static · local-first · modular</div>
+    </section>
+
+    <section class="top-controls" aria-label="Application mode">
+        <div class="control-group">
+            <span class="control-label">Operating level</span>
+            <div class="segmented" role="group" aria-label="Operating level">
+                <button type="button" class="segment active" data-level-button="simple">Simple</button>
+                <button type="button" class="segment" data-level-button="advanced">Advanced</button>
+                <button type="button" class="segment" data-level-button="expert">Expert</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Device</span>
+            <div class="tabs" role="group" aria-label="Device type">
+                <button type="button" class="tab active" data-device="openwrt">OpenWrt Router</button>
+                <button type="button" class="tab" data-device="netgear">NETGEAR Switch</button>
+            </div>
+        </div>
+    </section>
+
+    <div class="layout">
+
+        <section class="card" aria-label="Configuration inputs">
+            <div class="card-head">
+                <div>
+                    <h2 id="formTitle">OpenWrt</h2>
+                    <small id="formSubtitle">Intent-driven network configuration</small>
+                </div>
+            </div>
+
+            <div class="card-body">
+
+                <div id="openwrtWorkspace">
+                    <div class="section">
+                        <div class="section-title">
+                            <strong>Quick intent</strong>
+                            <span>Presets only populate fields</span>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="field">
+                                <label for="owPreset">Preset</label>
+                                <select id="owPreset">
+                                    <option value="custom">Custom</option>
+                                    <option value="setup">Setup VLAN</option>
+                                    <option value="wifi-admins">Wi-Fi Admins</option>
+                                    <option value="wifi-guests">Wi-Fi Guests</option>
+                                    <option value="enterprise-dynamic">802.1X Dynamic VLAN</option>
+                                </select>
+                            </div>
+
+                            <div class="field">
+                                <label>OpenWrt task</label>
+                                <div class="task-tabs" role="group" aria-label="OpenWrt task">
+                                    <button type="button" class="task-tab active" data-openwrt-task="vlan">VLAN / Network</button>
+                                    <button type="button" class="task-tab" data-openwrt-task="wireless">Wireless</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="openwrtVlanForm">
+                        <div class="section">
+                            <div class="section-title">
+                                <strong>VLAN identity</strong>
+                                <span>Layer 2 + Layer 3</span>
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="field">
+                                    <label for="rVlan">VLAN ID</label>
+                                    <input id="rVlan" type="number" min="1" max="4094" value="45">
+                                </div>
+
+                                <div class="field">
+                                    <label for="rName">Name</label>
+                                    <input id="rName" value="setup">
+                                </div>
+
+                                <div class="field">
+                                    <label for="rSubnet">Subnet</label>
+                                    <input id="rSubnet" value="172.18.45.0/24">
+                                </div>
+
+                                <div class="field">
+                                    <label for="rGw">Gateway</label>
+                                    <input id="rGw" value="172.18.45.254">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section" data-level="advanced">
+                            <div class="section-title">
+                                <strong>DHCP</strong>
+                                <span>dnsmasq scope</span>
+                            </div>
+
+                            <div class="grid-3">
+                                <div class="field">
+                                    <label for="rStart">Start</label>
+                                    <input id="rStart" type="number" min="1" max="254" value="100">
+                                </div>
+                                <div class="field">
+                                    <label for="rLimit">Limit</label>
+                                    <input id="rLimit" type="number" min="1" max="253" value="100">
+                                </div>
+                                <div class="field">
+                                    <label for="rLease">Lease</label>
+                                    <input id="rLease" value="12h">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section" data-level="advanced">
+                            <div class="section-title">
+                                <strong>Firewall policy</strong>
+                                <span>Specific CIDR denies are emitted first</span>
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="field">
+                                    <label for="rInputPolicy">Router input policy</label>
+                                    <select id="rInputPolicy">
+                                        <option value="REJECT">REJECT</option>
+                                        <option value="DROP">DROP</option>
+                                        <option value="ACCEPT">ACCEPT</option>
+                                    </select>
+                                </div>
+
+                                <div class="field">
+                                    <label for="rZone">Firewall zone</label>
+                                    <input id="rZone" value="setup">
+                                </div>
+
+                                <div class="field">
+                                    <label for="rAllow">Allowed CIDRs</label>
+                                    <input id="rAllow" value="172.16.0.0/16">
+                                    <div class="hint">Comma-separated. Leave blank when zone forwarding is sufficient.</div>
+                                </div>
+
+                                <div class="field">
+                                    <label for="rDeny">Denied CIDRs</label>
+                                    <input id="rDeny" value="172.16.0.0/24">
+                                    <div class="hint">Comma-separated. Useful for management-network exceptions.</div>
+                                </div>
+                            </div>
+
+                            <div class="checks">
+                                <label class="check"><input id="rWan" type="checkbox" checked>Allow zone to WAN</label>
+                                <label class="check"><input id="rLan" type="checkbox">Allow zone to LAN</label>
+                                <label class="check"><input id="rDhcp" type="checkbox" checked>Allow DHCP to OpenWrt</label>
+                                <label class="check"><input id="rDns" type="checkbox" checked>Allow DNS to OpenWrt</label>
+                                <label class="check"><input id="rPing" type="checkbox" checked>Allow ping to gateway</label>
+                                <label class="check"><input id="rApply" type="checkbox" checked>Commit and reload</label>
+                                <label class="check"><input id="rVerify" type="checkbox" checked>Verification commands</label>
+                            </div>
+                        </div>
+
+                        <div class="section" data-level="expert">
+                            <div class="section-title">
+                                <strong>Hardware / UCI details</strong>
+                                <span>Device-specific</span>
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="field">
+                                    <label for="rParent">Parent interface</label>
+                                    <input id="rParent" value="eth2">
+                                </div>
+                                <div class="field">
+                                    <label for="rSwitch">Switch device</label>
+                                    <input id="rSwitch" value="switch0">
+                                </div>
+                                <div class="field">
+                                    <label for="rCpu">Switch VLAN ports</label>
+                                    <input id="rCpu" value="0t">
+                                    <div class="hint">Hardware-specific. Your current router pattern uses a tagged CPU port of <code>0t</code>.</div>
+                                </div>
+                                <div class="field">
+                                    <label for="rBridge">Bridge name</label>
+                                    <input id="rBridge" value="br-vlan45">
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <form id="openwrtWirelessForm" class="hidden">
+                        <div class="section">
+                            <div class="section-title">
+                                <strong>Wireless BSS</strong>
+                                <span>AP / SSID</span>
+                            </div>
+
+                            <div class="grid-2">
+                                <div class="field">
+                                    <label for="wSection">UCI section</label>
+                                    <input id="wSection" value="wifi_guests">
+                                </div>
+                                <div class="field">
+                                    <label for="wSsid">SSID</label>
+                                    <input id="wSsid" value="wifi-guests">
+                                </div>
+                                <div class="field">
+                                    <label for="wMode">Wireless mode</label>
+                                    <select id="wMode">
+                                        <option value="standard">Static network BSS</option>
+                                        <option value="dynamic">802.1X dynamic VLAN BSS</option>
+                                    </select>
+                                </div>
+                                <div class="field" data-level="advanced">
+                                    <label for="wRadio">Radio</label>
+                                    <input id="wRadio" value="radio1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="wirelessStandardFields">
+                            <div class="section">
+                                <div class="section-title">
+                                    <strong>Network & security</strong>
+                                    <span>Static BSS</span>
+                                </div>
+
+                                <div class="grid-2">
+                                    <div class="field">
+                                        <label for="wNetwork">Network</label>
+                                        <input id="wNetwork" value="wifi_guests">
+                                    </div>
+                                    <div class="field">
+                                        <label for="wEncryption">Encryption</label>
+                                        <select id="wEncryption">
+                                            <option value="psk2">WPA2 Personal</option>
+                                            <option value="sae">WPA3 Personal</option>
+                                            <option value="sae-mixed">WPA2/WPA3 Personal</option>
+                                            <option value="none">Open / none</option>
+                                        </select>
+                                    </div>
+                                    <div class="field span-2" id="wKeyField">
+                                        <label for="wKey">Wi-Fi key</label>
+                                        <input id="wKey" type="password" autocomplete="new-password" placeholder="Enter a Wi-Fi key">
+                                        <div class="hint">Generated locally only. WPA2/WPA3 passphrases normally require 8-63 characters.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="wirelessDynamicFields" class="hidden">
+                            <div class="section">
+                                <div class="section-title">
+                                    <strong>RADIUS dynamic VLAN</strong>
+                                    <span>802.1X Enterprise</span>
+                                </div>
+
+                                <div class="notice info">
+                                    Dynamic VLAN mode deliberately removes the normal <code>network</code> binding from the Wi-Fi interface and uses RADIUS VLAN assignment instead.
+                                </div>
+
+                                <div class="grid-2" style="margin-top:12px">
+                                    <div class="field">
+                                        <label for="wRadiusServer">RADIUS server</label>
+                                        <input id="wRadiusServer" placeholder="192.0.2.10">
+                                    </div>
+                                    <div class="field">
+                                        <label for="wRadiusPort">Authentication port</label>
+                                        <input id="wRadiusPort" type="number" min="1" max="65535" value="1812">
+                                    </div>
+                                    <div class="field span-2">
+                                        <label for="wRadiusSecret">RADIUS shared secret</label>
+                                        <input id="wRadiusSecret" type="password" autocomplete="new-password" placeholder="Enter the RADIUS shared secret">
+                                    </div>
+                                </div>
+
+                                <div class="grid-2" data-level="expert" style="margin-top:12px">
+                                    <div class="field">
+                                        <label for="wDynamicMode">dynamic_vlan</label>
+                                        <select id="wDynamicMode">
+                                            <option value="1">1 - enabled</option>
+                                            <option value="2">2 - required</option>
+                                        </select>
+                                    </div>
+                                    <div class="field">
+                                        <label for="wTaggedInterface">Tagged interface</label>
+                                        <input id="wTaggedInterface" value="eth2">
+                                    </div>
+                                    <div class="field">
+                                        <label for="wVlanBridge">VLAN bridge prefix</label>
+                                        <input id="wVlanBridge" value="br-vlan">
+                                    </div>
+                                    <div class="field">
+                                        <label for="wVlanNaming">vlan_naming</label>
+                                        <input id="wVlanNaming" value="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <div class="section-title">
+                                <strong>Isolation</strong>
+                                <span>Especially useful for guest networks</span>
+                            </div>
+
+                            <div class="checks">
+                                <label class="check"><input id="wIsolate" type="checkbox" checked>Client isolation (<code>isolate=1</code>)</label>
+                                <label class="check"><input id="wBridgeIsolate" type="checkbox" checked>Bridge-wide isolation (<code>bridge_isolate=1</code>)</label>
+                                <label class="check"><input id="wHidden" type="checkbox">Hidden SSID</label>
+                                <label class="check"><input id="wApply" type="checkbox" checked>Commit and reload Wi-Fi</label>
+                                <label class="check"><input id="wVerify" type="checkbox" checked>Verification commands</label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="netgearWorkspace" class="hidden">
+                    <div class="section">
+                        <div class="section-title">
+                            <strong>Switch task</strong>
+                            <span>GS108Tv3-style CLI</span>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="field">
+                                <label for="sTask">Goal</label>
+                                <select id="sTask">
+                                    <option value="trunk">Configure hybrid/trunk port</option>
+                                    <option value="access">Configure access port</option>
+                                    <option value="vlans">Create VLANs only</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="sPort">Interface</label>
+                                <input id="sPort" value="g8">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title">
+                            <strong>VLAN membership</strong>
+                            <span>Layer 2</span>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="field">
+                                <label for="sNative">Native / untagged VLAN</label>
+                                <input id="sNative" type="number" min="1" max="4094" value="1">
+                            </div>
+                            <div class="field">
+                                <label for="sTagged">Tagged VLANs</label>
+                                <input id="sTagged" value="10-12,45">
+                                <div class="hint">IDs/ranges, e.g. <code>10-12,45</code>.</div>
+                            </div>
+                            <div class="field span-2" data-level="advanced">
+                                <label for="sNames">VLAN names</label>
+                                <textarea id="sNames">10=wifi-admins
+11=wifi-users
+12=wifi-guests
+45=setup</textarea>
+                                <div class="hint">One per line: <code>ID=name</code>.</div>
+                            </div>
+                        </div>
+
+                        <div class="checks" data-level="expert">
+                            <label class="check"><input id="sNativeTouch" type="checkbox">Reassert/change native VLAN/PVID</label>
+                        </div>
+
+                        <div class="checks">
+                            <label class="check"><input id="sVerify" type="checkbox" checked>Verification commands</label>
+                            <label class="check"><input id="sSave" type="checkbox" checked>Save startup configuration</label>
+                        </div>
+
+                        <div class="notice" style="margin-top:12px">
+                            Native VLAN/PVID changes are disabled by default. Adding tagged VLANs to a working trunk is lower risk than rewriting its native VLAN.
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="card preview-panel" aria-label="Generated plan">
+            <div class="visual">
+                <div class="topology" id="openwrtVisual">
+                    <div class="node">
+                        <strong id="visualSource">VLAN 45 / setup</strong>
+                        <small id="visualSourceDetail">172.18.45.0/24</small>
+                    </div>
+
+                    <div class="links">
+                        <div class="link"><span class="line"></span><span id="visualLinkA">802.1Q</span></div>
+                        <div class="link"><span class="line"></span><span id="visualLinkB">firewall</span></div>
+                    </div>
+
+                    <div class="node">
+                        <strong id="visualTarget">OpenWrt</strong>
+                        <small id="visualTargetDetail">eth2.45 → br-vlan45</small>
+                        <div class="pills" id="visualPills"></div>
+                    </div>
+                </div>
+
+                <div class="topology hidden" id="netgearVisual">
+                    <div class="node">
+                        <strong id="switchVisualPort">NETGEAR g8</strong>
+                        <small id="switchVisualNative">Native VLAN 1</small>
+                    </div>
+                    <div class="links">
+                        <div class="link"><span class="line"></span><span>untagged</span></div>
+                        <div class="link"><span class="line"></span><span id="switchVisualTagged">tagged 10-12,45</span></div>
+                    </div>
+                    <div class="node">
+                        <strong>Port policy</strong>
+                        <small id="switchVisualTask">Hybrid/trunk</small>
+                        <div class="pills">
+                            <span class="pill good">Preview first</span>
+                            <span class="pill warn">Verify before save</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="risk-panel">
+                <div class="risk-badge low" id="riskBadge">LOW</div>
+                <div class="risk-copy">
+                    <strong id="riskTitle">Low change risk</strong>
+                    <ul id="riskList"><li>Additive configuration with no obvious native-management change.</li></ul>
+                </div>
+            </div>
+
+            <div class="toolbar">
+                <div>
+                    <strong>Generated commands</strong>
+                    <small id="status">Validated locally</small>
+                </div>
+                <div class="actions">
+                    <button type="button" class="btn secondary" id="reset">Reset current task</button>
+                    <button type="button" class="btn primary" id="copy">Copy commands</button>
+                </div>
+            </div>
+
+            <pre id="output" aria-live="polite"></pre>
+        </section>
+
+    </div>
+
+    <div class="footer">
+        <span>State is stored only in this browser.</span>
+        <span>v1.1.0 · OpenWrt VLAN + Wireless · NETGEAR VLAN/ports</span>
+    </div>
+</div>
+</body>
+</html>
