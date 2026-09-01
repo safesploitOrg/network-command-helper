@@ -7,12 +7,14 @@ NCH.generators.openwrtWireless = (() => {
         return (value.length >= 8 && value.length <= 63) || /^[0-9A-Fa-f]{64}$/.test(value);
     }
 
-    function generate(values) {
+    function generate(values, context = {}) {
         const utils = NCH.utils;
         const commands = [];
+        const rollbackCommands = [];
         const summary = [];
         const risks = [];
         const errors = [];
+        const resources = [];
 
         const section = utils.uciSection(values.wSection, "wifi_network");
         const ssid = String(values.wSsid || "").trim();
@@ -24,25 +26,21 @@ NCH.generators.openwrtWireless = (() => {
         const hidden = Boolean(values.wHidden);
         const isolate = Boolean(values.wIsolate);
         const bridgeIsolate = Boolean(values.wBridgeIsolate);
+        const desiredOptions = { device: radio, mode: "ap", ssid, isolate: isolate ? "1" : "0", bridge_isolate: bridgeIsolate ? "1" : "0", hidden: hidden ? "1" : "0" };
 
-        if (!ssid) {
-            errors.push("SSID is required.");
-        }
+        if (!ssid) errors.push("SSID is required.");
 
         commands.push(
-            "#!/bin/sh",
-            "",
+            "#!/bin/sh", "",
             `# Wireless section: ${section}`,
             `# SSID:             ${ssid}`,
             `# Radio:            ${radio}`,
             `# Mode:             ${mode === "dynamic" ? "802.1X dynamic VLAN" : "static network BSS"}`,
             `# Client isolation: ${isolate ? "enabled" : "disabled"}`,
-            `# Bridge isolation: ${bridgeIsolate ? "enabled" : "disabled"}`,
-            "",
+            `# Bridge isolation: ${bridgeIsolate ? "enabled" : "disabled"}`, "",
             "# ============================================================",
             "# WIRELESS BSS",
-            "# ============================================================",
-            "",
+            "# ============================================================", "",
             `uci set wireless.${section}='wifi-iface'`,
             `uci set wireless.${section}.device='${radio}'`,
             `uci set wireless.${section}.mode='ap'`,
@@ -50,31 +48,18 @@ NCH.generators.openwrtWireless = (() => {
         );
 
         if (mode === "standard") {
-            commands.push(
-                `uci set wireless.${section}.network='${network}'`,
-                `uci set wireless.${section}.encryption='${encryption}'`
-            );
-
+            commands.push(`uci set wireless.${section}.network='${network}'`, `uci set wireless.${section}.encryption='${encryption}'`);
+            desiredOptions.network = network;
+            desiredOptions.encryption = encryption;
             if (encryption === "none") {
                 commands.push(`uci -q delete wireless.${section}.key || true`);
-                risks.push({
-                    level: "high",
-                    code: "OPEN_WIFI",
-                    message: "Creates an unencrypted/open wireless network."
-                });
+                risks.push({ level: "high", code: "OPEN_WIFI", message: "Creates an unencrypted/open wireless network." });
             } else {
-                if (!validPsk(key)) {
-                    errors.push("WPA2/WPA3 Personal requires an 8-63 character passphrase or a 64-character hexadecimal key.");
-                }
+                if (!validPsk(key)) errors.push("WPA2/WPA3 Personal requires an 8-63 character passphrase or a 64-character hexadecimal key.");
                 commands.push(`uci set wireless.${section}.key=${utils.shellSingleQuote(key)}`);
             }
-
             summary.push(`${ssid} -> ${network}`);
-            risks.push({
-                level: "low",
-                code: "WIRELESS_BSS",
-                message: `Creates/updates the ${ssid} wireless BSS.`
-            });
+            risks.push({ level: "low", code: "WIRELESS_BSS", message: `Creates/updates the ${ssid} wireless BSS.` });
         } else {
             const radiusServer = String(values.wRadiusServer || "").trim();
             const radiusPort = utils.clamp(values.wRadiusPort, 1, 65535, 1812);
@@ -83,14 +68,8 @@ NCH.generators.openwrtWireless = (() => {
             const taggedInterface = utils.safeToken(values.wTaggedInterface, "eth2");
             const vlanBridge = utils.safeToken(values.wVlanBridge, "br-vlan");
             const vlanNaming = utils.safeToken(values.wVlanNaming, "0");
-
-            if (!utils.validIPv4(radiusServer)) {
-                errors.push("A valid IPv4 RADIUS server is required for dynamic VLAN mode.");
-            }
-            if (!radiusSecret) {
-                errors.push("A RADIUS shared secret is required for dynamic VLAN mode.");
-            }
-
+            if (!utils.validIPv4(radiusServer)) errors.push("A valid IPv4 RADIUS server is required for dynamic VLAN mode.");
+            if (!radiusSecret) errors.push("A RADIUS shared secret is required for dynamic VLAN mode.");
             commands.push(
                 `uci -q delete wireless.${section}.network || true`,
                 `uci set wireless.${section}.encryption='wpa2'`,
@@ -102,87 +81,39 @@ NCH.generators.openwrtWireless = (() => {
                 `uci set wireless.${section}.vlan_bridge='${vlanBridge}'`,
                 `uci set wireless.${section}.vlan_naming='${vlanNaming}'`
             );
-
+            Object.assign(desiredOptions, { encryption: "wpa2", server: radiusServer, port: String(radiusPort), dynamic_vlan: dynamicMode, vlan_tagged_interface: taggedInterface, vlan_bridge: vlanBridge, vlan_naming: vlanNaming });
             summary.push(`${ssid} -> RADIUS dynamic VLANs on ${taggedInterface}`);
-            risks.push({
-                level: "medium",
-                code: "DYNAMIC_VLAN",
-                message: "Enables RADIUS-driven dynamic VLAN assignment for the wireless BSS."
-            });
+            risks.push({ level: "medium", code: "DYNAMIC_VLAN", message: "Enables RADIUS-driven dynamic VLAN assignment for the wireless BSS." });
         }
 
         commands.push(
-            "",
-            "# ============================================================",
-            "# WIRELESS ISOLATION / VISIBILITY",
-            "# ============================================================",
-            "",
+            "", "# ============================================================", "# WIRELESS ISOLATION / VISIBILITY", "# ============================================================", "",
             `uci set wireless.${section}.isolate='${isolate ? "1" : "0"}'`,
             `uci set wireless.${section}.bridge_isolate='${bridgeIsolate ? "1" : "0"}'`,
-            `uci set wireless.${section}.hidden='${hidden ? "1" : "0"}'`,
-            ""
+            `uci set wireless.${section}.hidden='${hidden ? "1" : "0"}'`, ""
         );
-
-        if (isolate) {
-            risks.push({
-                level: "low",
-                code: "CLIENT_ISOLATION",
-                message: "Wireless client isolation is enabled for this BSS."
-            });
-        }
-
-        if (bridgeIsolate) {
-            risks.push({
-                level: "low",
-                code: "BRIDGE_ISOLATION",
-                message: "Bridge-wide wireless client isolation is enabled."
-            });
-        }
+        if (isolate) risks.push({ level: "low", code: "CLIENT_ISOLATION", message: "Wireless client isolation is enabled for this BSS." });
+        if (bridgeIsolate) risks.push({ level: "low", code: "BRIDGE_ISOLATION", message: "Bridge-wide wireless client isolation is enabled." });
 
         if (values.wApply) {
-            commands.push(
-                "# ============================================================",
-                "# COMMIT / APPLY",
-                "# ============================================================",
-                "",
-                "uci commit wireless",
-                "wifi reload",
-                ""
-            );
-
-            risks.push({
-                level: "medium",
-                code: "WIFI_RELOAD",
-                message: "Reloading Wi-Fi may briefly disconnect associated clients."
-            });
+            commands.push("# ============================================================", "# COMMIT / APPLY", "# ============================================================", "", "uci commit wireless", "wifi reload", "");
+            risks.push({ level: "medium", code: "WIFI_RELOAD", message: "Reloading Wi-Fi may briefly disconnect associated clients." });
         }
+        if (values.wVerify) commands.push("# ============================================================", "# VERIFY", "# ============================================================", "", `uci show wireless.${section}`, "wifi status");
 
-        if (values.wVerify) {
-            commands.push(
-                "# ============================================================",
-                "# VERIFY",
-                "# ============================================================",
-                "",
-                `uci show wireless.${section}`,
-                "wifi status"
-            );
+        resources.push({ kind: "uci-section", platform: "openwrt", package: "wireless", section, type: "wifi-iface", options: desiredOptions });
+        const restore = NCH.rollback.uciRestoreSection(context.currentState, "wireless", section);
+        const rollbackExact = Boolean(restore);
+        if (restore) {
+            rollbackCommands.push("#!/bin/sh", "", `# State-aware Revert for wireless.${section}`, ...restore, "uci commit wireless", "wifi reload", "", "echo 'PASS: previous wireless section restored'");
         }
 
         return {
-            commands,
-            summary,
-            risks,
-            errors,
-            meta: {
-                section,
-                ssid,
-                mode,
-                radio,
-                network,
-                encryption,
-                isolate,
-                bridgeIsolate
-            }
+            commands, rollbackCommands, rollbackExact,
+            rollbackNote: rollbackExact ? "Exact Revert derived from imported OpenWrt current state." : "Import current OpenWrt 'uci show wireless' state to generate an exact Revert for an existing BSS.",
+            summary, risks, errors, resources,
+            meta: { section, ssid, mode, radio, network, encryption, isolate, bridgeIsolate },
+            plan: { title: `OpenWrt wireless ${ssid}`, platform: "openwrt", task: "wireless", order: 70, mutating: true }
         };
     }
 

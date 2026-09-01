@@ -559,3 +559,133 @@ pre {
         display: flex;
     }
 }
+
+
+/* ============================================================
+   APPLY / REVERT OUTPUT MODE
+   ============================================================ */
+.output-mode-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(9, 21, 36, .55);
+}
+.segmented.compact .segment { min-height: 38px; padding: 7px 12px; }
+.segment:disabled { opacity: .42; cursor: not-allowed; }
+.rollback-note { color: var(--muted); font-size: .76rem; line-height: 1.4; text-align: right; }
+.rollback-note.exact { color: var(--good); }
+.rollback-note.warn { color: var(--warn); }
+@media (max-width: 720px) {
+    .output-mode-bar { align-items: flex-start; flex-direction: column; }
+    .rollback-note { text-align: left; }
+}
+
+/* ============================================================
+   V1.6 IMPORT / DIFF + V1.7 PLAN
+   ============================================================ */
+.import-panel {
+    margin: 0 0 18px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(9, 21, 36, .42);
+}
+.import-panel > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 13px 14px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+}
+.import-panel > summary::-webkit-details-marker { display: none; }
+.details-body { padding: 0 14px 14px; }
+.inline-actions { min-height: 43px; align-items: center; }
+.plan-builder { border-top: 1px solid var(--border); }
+.plan-actions { margin-bottom: 10px; }
+.plan-list {
+    margin: 10px 0 8px 20px;
+    padding: 0;
+    color: var(--muted);
+    font-size: .8rem;
+    line-height: 1.55;
+}
+.plan-list li { margin-bottom: 6px; }
+.plan-item-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.plan-remove {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--bad);
+    border-radius: 8px;
+    padding: 3px 8px;
+    cursor: pointer;
+}
+.muted-item { color: var(--muted); }
+.diff-panel {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(9, 21, 36, .35);
+}
+.diff-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+}
+.diff-head small { color: var(--muted); }
+.diff-list {
+    margin: 8px 0 0 18px;
+    padding: 0;
+    color: var(--muted);
+    font-size: .76rem;
+    line-height: 1.5;
+}
+.diff-list li.add { color: var(--good); }
+.diff-list li.change { color: var(--warn); }
+.diff-list li.unknown { color: var(--bad); }
+.preview-mode-bar {
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border);
+}
+@media (max-width: 680px) {
+    .diff-head, .plan-item-row { align-items: flex-start; flex-direction: column; }
+}
+
+/* ============================================================
+   v1.8 REDUNDANCY / SWITCH PAIR
+   ============================================================ */
+.port-policy-table {
+    display: grid;
+    gap: 8px;
+}
+.port-policy-row {
+    display: grid;
+    grid-template-columns: 52px minmax(180px, .8fr) minmax(180px, 1.2fr);
+    gap: 10px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+}
+.port-policy-row.header {
+    color: var(--muted);
+    font-size: .76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+.port-policy-row select,
+.port-policy-row input { min-width: 0; }
+.diff-list li.drift { color: var(--bad); }
+.diff-list li.warning { color: var(--warn); }
+.diff-list li.ignored { color: var(--muted); }
+.diff-list li.match { color: var(--good); }
+.diff-list li.unknown { color: var(--warn); }
+@media (max-width: 620px) {
+    .port-policy-row { grid-template-columns: 45px 1fr; }
+    .port-policy-row > :last-child { grid-column: 2; }
+    .port-policy-row.header > :last-child { display: none; }
+}

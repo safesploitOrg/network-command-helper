@@ -9,11 +9,21 @@
 
     <script defer src="assets/js/core/config.js"></script>
     <script defer src="assets/js/core/utils.js"></script>
+    <script defer src="assets/js/core/import.js"></script>
+    <script defer src="assets/js/core/rollback.js"></script>
+    <script defer src="assets/js/core/diff.js"></script>
+    <script defer src="assets/js/core/plan.js"></script>
+    <script defer src="assets/js/core/redundancy.js"></script>
+    <script defer src="assets/js/core/intent.js"></script>
     <script defer src="assets/js/core/state.js"></script>
     <script defer src="assets/js/core/risk.js"></script>
     <script defer src="assets/js/presets/openwrt.js"></script>
     <script defer src="assets/js/generators/openwrt-vlan.js"></script>
+    <script defer src="assets/js/generators/openwrt-firewall.js"></script>
+    <script defer src="assets/js/generators/openwrt-dhcp-dns.js"></script>
     <script defer src="assets/js/generators/openwrt-wireless.js"></script>
+    <script defer src="assets/js/generators/openwrt-routing.js"></script>
+    <script defer src="assets/js/generators/openwrt-nat.js"></script>
     <script defer src="assets/js/generators/netgear.js"></script>
     <script defer src="assets/js/app.js"></script>
 </head>
@@ -45,8 +55,10 @@
         <div class="control-group">
             <span class="control-label">Device</span>
             <div class="tabs" role="group" aria-label="Device type">
-                <button type="button" class="tab active" data-device="openwrt">OpenWrt Router</button>
+                <button type="button" class="tab active" data-device="intent">Network Intent</button>
+                <button type="button" class="tab" data-device="openwrt">OpenWrt Router</button>
                 <button type="button" class="tab" data-device="netgear">NETGEAR Switch</button>
+                <button type="button" class="tab" data-device="redundancy">Switch Pair / Redundancy</button>
             </div>
         </div>
     </section>
@@ -62,6 +74,105 @@
             </div>
 
             <div class="card-body">
+
+                <details class="section import-panel" id="importPanel">
+                    <summary><strong>Current-state import & diff</strong> <span class="hint">v1.6 · memory-only</span></summary>
+                    <div class="grid-2 details-body">
+                        <div class="field">
+                            <label for="importFormat">Format</label>
+                            <select id="importFormat">
+                                <option value="auto">Auto-detect</option>
+                                <option value="openwrt-uci">OpenWrt: uci show</option>
+                                <option value="netgear-running">NETGEAR: show running-config</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Current state</label>
+                            <div class="actions inline-actions">
+                                <button type="button" class="btn secondary" id="parseImport">Parse state</button>
+                                <button type="button" class="btn secondary" id="clearImport">Clear</button>
+                            </div>
+                        </div>
+                        <div class="field span-2">
+                            <label for="importConfig">Paste current configuration</label>
+                            <textarea id="importConfig" rows="8" placeholder="OpenWrt: uci show network; uci show firewall; uci show dhcp; uci show wireless
+
+NETGEAR: show running-config"></textarea>
+                            <div class="hint" id="importStatus">Nothing imported. Imported configuration is never saved to localStorage.</div>
+                        </div>
+                    </div>
+                </details>
+
+                <div id="intentWorkspace">
+                    <div class="section">
+                        <div class="section-title"><strong>Cross-device network intent</strong><span>Define once · compile per device</span></div>
+                        <div class="grid-2">
+                            <div class="field"><label for="iName">Network name</label><input id="iName" value="monitoring"></div>
+                            <div class="field"><label for="iVlan">VLAN ID</label><input id="iVlan" type="number" min="1" max="4094" value="120"></div>
+                            <div class="field"><label for="iSubnet">Subnet</label><input id="iSubnet" value="172.18.120.0/24"></div>
+                            <div class="field"><label for="iGateway">Gateway</label><input id="iGateway" value="172.18.120.254"></div>
+                            <div class="field"><label for="iZone">OpenWrt zone/interface name</label><input id="iZone" value="monitoring"></div>
+                            <div class="field"><label for="iRouterName">Router label</label><input id="iRouterName" value="SWS-Router2"></div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><strong>Targets</strong><span>Select where this network must exist</span></div>
+                        <div class="checks">
+                            <label class="check"><input id="iTargetOpenwrt" type="checkbox" checked>OpenWrt router</label>
+                            <label class="check"><input id="iTargetSw01" type="checkbox" checked>sw01</label>
+                            <label class="check"><input id="iTargetSw02" type="checkbox" checked>sw02</label>
+                        </div>
+                        <div class="notice info" style="margin-top:12px">OpenWrt uses the current-state import above. sw01/sw02 use the memory-only imports from <strong>Switch Pair / Redundancy</strong>. Missing state does not block generation, but it creates an explicit rollback gap.</div>
+                    </div>
+
+                    <div class="section" data-level="advanced">
+                        <div class="section-title"><strong>Switch uplinks</strong><span>Tagged VLAN membership only</span></div>
+                        <div class="grid-2">
+                            <div class="field"><label for="iSw1Port">sw01 trunk port</label><input id="iSw1Port" value="g8"></div>
+                            <div class="field"><label for="iSw2Port">sw02 trunk port</label><input id="iSw2Port" value="g8"></div>
+                            <div class="field"><label for="iNativeVlan">Native VLAN / PVID</label><input id="iNativeVlan" type="number" min="1" max="4094" value="1"><div class="hint">Left unchanged on the switch; used only to validate the generated trunk intent.</div></div>
+                        </div>
+                    </div>
+
+                    <div class="section" data-level="advanced">
+                        <div class="section-title"><strong>OpenWrt policy</strong><span>Built into the routed VLAN</span></div>
+                        <div class="grid-2">
+                            <div class="field"><label for="iInputPolicy">Router input</label><select id="iInputPolicy"><option value="REJECT" selected>REJECT</option><option value="DROP">DROP</option><option value="ACCEPT">ACCEPT</option></select></div>
+                            <div class="field"><label for="iDhcpStart">DHCP start</label><input id="iDhcpStart" type="number" min="1" max="254" value="100"></div>
+                            <div class="field"><label for="iDhcpLimit">DHCP limit</label><input id="iDhcpLimit" type="number" min="1" max="253" value="100"></div>
+                            <div class="field"><label for="iLease">Lease time</label><input id="iLease" value="12h"></div>
+                            <div class="field span-2"><label for="iAllow">Allowed internal CIDRs</label><input id="iAllow" placeholder="Comma-separated, optional"></div>
+                            <div class="field span-2"><label for="iDeny">Denied internal CIDRs</label><input id="iDeny" placeholder="Comma-separated, emitted before allows"></div>
+                        </div>
+                        <div class="checks" style="margin-top:12px">
+                            <label class="check"><input id="iWan" type="checkbox">Allow WAN forwarding</label>
+                            <label class="check"><input id="iLan" type="checkbox">Allow LAN-zone forwarding</label>
+                            <label class="check"><input id="iDhcp" type="checkbox" checked>Allow DHCP to router</label>
+                            <label class="check"><input id="iDns" type="checkbox" checked>Allow DNS to router</label>
+                            <label class="check"><input id="iPing" type="checkbox" checked>Allow gateway ping</label>
+                        </div>
+                    </div>
+
+                    <div class="section" data-level="expert">
+                        <div class="section-title"><strong>OpenWrt hardware profile</strong><span>Current swconfig router defaults</span></div>
+                        <div class="grid-2">
+                            <div class="field"><label for="iParent">Parent interface</label><input id="iParent" value="eth2"></div>
+                            <div class="field"><label for="iSwitch">Switch device</label><input id="iSwitch" value="switch0"></div>
+                            <div class="field"><label for="iCpu">CPU/tagged ports</label><input id="iCpu" value="0t"></div>
+                            <div class="field"><label for="iBridge">Bridge name</label><input id="iBridge" placeholder="Auto: br-vlan<VLAN>"></div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><strong>Execution policy</strong><span>Plan compiler settings</span></div>
+                        <div class="checks">
+                            <label class="check"><input id="iApplyRouter" type="checkbox" checked>Commit/reload OpenWrt</label>
+                            <label class="check"><input id="iSaveSwitches" type="checkbox" checked>Save NETGEAR configuration after verification</label>
+                            <label class="check"><input id="iVerify" type="checkbox" checked>Generate per-device verification</label>
+                        </div>
+                    </div>
+                </div>
 
                 <div id="openwrtWorkspace">
                     <div class="section">
@@ -86,7 +197,11 @@
                                 <label>OpenWrt task</label>
                                 <div class="task-tabs" role="group" aria-label="OpenWrt task">
                                     <button type="button" class="task-tab active" data-openwrt-task="vlan">VLAN / Network</button>
+                                    <button type="button" class="task-tab" data-openwrt-task="firewall">Firewall</button>
+                                    <button type="button" class="task-tab" data-openwrt-task="dhcpdns">DHCP / DNS</button>
                                     <button type="button" class="task-tab" data-openwrt-task="wireless">Wireless</button>
+                                    <button type="button" class="task-tab" data-openwrt-task="routing">Routing</button>
+                                    <button type="button" class="task-tab" data-openwrt-task="nat">NAT / Port Forward</button>
                                 </div>
                             </div>
                         </div>
@@ -215,6 +330,187 @@
                                 </div>
                             </div>
                         </div>
+                    </form>
+
+
+                    <form id="openwrtFirewallForm" class="hidden">
+                        <div class="section">
+                            <div class="section-title"><strong>Firewall rule builder</strong><span>Named, reversible UCI changes</span></div>
+                            <div class="grid-2">
+                                <div class="field">
+                                    <label for="fKind">Operation</label>
+                                    <select id="fKind">
+                                        <option value="rule">Traffic rule</option>
+                                        <option value="forwarding">Zone forwarding</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label for="fSection">UCI section</label>
+                                    <input id="fSection" value="nch_allow_setup_dns">
+                                    <div class="hint">Apply aborts if this section already exists, keeping Revert exact.</div>
+                                </div>
+                                <div class="field" id="fNameField">
+                                    <label for="fName">Rule name</label>
+                                    <input id="fName" value="Allow Setup DNS">
+                                </div>
+                                <div class="field">
+                                    <label for="fSrcZone">Source zone</label>
+                                    <input id="fSrcZone" value="setup" placeholder="Blank = router output">
+                                </div>
+                                <div class="field">
+                                    <label for="fDestZone">Destination zone</label>
+                                    <input id="fDestZone" placeholder="Blank = router input">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section" id="firewallMatchFields" data-level="advanced">
+                            <div class="section-title"><strong>Traffic match</strong><span>IPv4 / ports</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="fSrcIp">Source IP/CIDR</label><input id="fSrcIp" placeholder="Optional"></div>
+                                <div class="field"><label for="fDestIp">Destination IP/CIDR</label><input id="fDestIp" placeholder="Optional"></div>
+                                <div class="field"><label for="fSrcPort">Source port/range</label><input id="fSrcPort" placeholder="Optional, e.g. 1024-65535"></div>
+                                <div class="field"><label for="fDestPort">Destination port/range</label><input id="fDestPort" value="53" placeholder="e.g. 53 or 8000-8080"></div>
+                                <div class="field">
+                                    <label for="fProto">Protocol</label>
+                                    <select id="fProto"><option value="all">All</option><option value="tcp">TCP</option><option value="udp">UDP</option><option value="tcp udp" selected>TCP + UDP</option><option value="icmp">ICMP</option></select>
+                                </div>
+                                <div class="field">
+                                    <label for="fTarget">Action</label>
+                                    <select id="fTarget"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="section">
+                            <div class="checks">
+                                <label class="check"><input id="fEnabled" type="checkbox" checked>Rule enabled</label>
+                                <label class="check"><input id="fApply" type="checkbox" checked>Commit and reload firewall</label>
+                                <label class="check"><input id="fVerify" type="checkbox" checked>Verification commands</label>
+                            </div>
+                            <div class="notice info" style="margin-top:12px">Traffic rules follow OpenWrt chain semantics: source only = INPUT to router, destination only = OUTPUT from router, source + destination = FORWARD.</div>
+                        </div>
+                    </form>
+
+                    <form id="openwrtDhcpDnsForm" class="hidden">
+                        <div class="section">
+                            <div class="section-title"><strong>DHCP / DNS builder</strong><span>Exact additive Revert</span></div>
+                            <div class="field">
+                                <label for="dMode">Operation</label>
+                                <select id="dMode">
+                                    <option value="pool-options">DHCP advertised options</option>
+                                    <option value="static-lease">Static DHCP lease</option>
+                                    <option value="dns-forward">DNS forwarding</option>
+                                    <option value="host-record">Local DNS host record</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="dhcpPoolFields" class="section">
+                            <div class="section-title"><strong>DHCP advertised options</strong><span>Options 3 / 6 / 42</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="dPool">DHCP pool section</label><input id="dPool" value="setup"></div>
+                                <div class="field"><label for="dGateway">Default gateway</label><input id="dGateway" value="172.18.45.254"></div>
+                                <div class="field"><label for="dDnsServers">DNS servers</label><input id="dDnsServers" value="172.16.5.22"><div class="hint">Comma-separated IPv4 addresses.</div></div>
+                                <div class="field"><label for="dNtpServers">NTP servers</label><input id="dNtpServers" placeholder="Optional, comma-separated"></div>
+                            </div>
+                        </div>
+
+                        <div id="dhcpLeaseFields" class="section hidden">
+                            <div class="section-title"><strong>Static lease</strong><span>Named host section</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="dLeaseSection">UCI section</label><input id="dLeaseSection" value="nch_test_server"></div>
+                                <div class="field"><label for="dHostName">Hostname</label><input id="dHostName" value="test-server"></div>
+                                <div class="field"><label for="dMac">MAC address</label><input id="dMac" value="00:11:22:33:44:55"></div>
+                                <div class="field"><label for="dLeaseIp">IPv4 address</label><input id="dLeaseIp" value="172.18.45.10"></div>
+                            </div>
+                            <div class="checks"><label class="check"><input id="dLeaseDns" type="checkbox" checked>Publish lease in DNS</label></div>
+                        </div>
+
+                        <div id="dnsForwardFields" class="section hidden">
+                            <div class="section-title"><strong>DNS forwarding</strong><span>dnsmasq list server</span></div>
+                            <div class="grid-2">
+                                <div class="field" data-level="expert"><label for="dDnsmasq">dnsmasq section</label><input id="dDnsmasq" value="@dnsmasq[0]"></div>
+                                <div class="field"><label for="dForwardDomain">Domain</label><input id="dForwardDomain" value="safesploit.com"><div class="hint">Leave blank for global forwarders.</div></div>
+                                <div class="field span-2"><label for="dForwardServers">Forwarding servers</label><input id="dForwardServers" value="172.16.5.22"><div class="hint">Comma-separated IPv4 addresses.</div></div>
+                            </div>
+                        </div>
+
+                        <div id="dnsHostFields" class="section hidden">
+                            <div class="section-title"><strong>Local DNS host record</strong><span>dnsmasq hostrecord</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="dRecordSection">UCI section</label><input id="dRecordSection" value="nch_local_record"></div>
+                                <div class="field"><label for="dRecordName">Hostname / FQDN</label><input id="dRecordName" value="router.safesploit.com"></div>
+                                <div class="field"><label for="dRecordIp">IPv4 address</label><input id="dRecordIp" value="172.16.0.1"></div>
+                            </div>
+                        </div>
+
+                        <div class="section">
+                            <div class="checks">
+                                <label class="check"><input id="dApply" type="checkbox" checked>Commit and restart dnsmasq</label>
+                                <label class="check"><input id="dVerify" type="checkbox" checked>Verification commands</label>
+                            </div>
+                            <div class="notice info" style="margin-top:12px">Revert is exact for these operations because Apply refuses duplicate named sections/list values before making the change.</div>
+                        </div>
+                    </form>
+
+                    <form id="openwrtRoutingForm" class="hidden">
+                        <div class="section">
+                            <div class="section-title"><strong>Static route</strong><span>netifd / network route section</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="rtSection">UCI section</label><input id="rtSection" value="nch_route_setup"></div>
+                                <div class="field"><label for="rtInterface">Logical interface</label><input id="rtInterface" value="lan"></div>
+                                <div class="field"><label for="rtTarget">Target CIDR</label><input id="rtTarget" value="172.18.45.0/24"></div>
+                                <div class="field"><label for="rtGateway">Gateway</label><input id="rtGateway" value="172.16.0.2"></div>
+                                <div class="field"><label for="rtMetric">Metric</label><input id="rtMetric" type="number" min="0" value="10"></div>
+                                <div class="field"><label for="rtTable">Routing table</label><input id="rtTable" value="main"></div>
+                            </div>
+                        </div>
+                        <div class="section" data-level="expert">
+                            <div class="section-title"><strong>Advanced route</strong><span>Expert</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="rtType">Route type</label><select id="rtType"><option value="unicast">unicast</option><option value="blackhole">blackhole</option><option value="unreachable">unreachable</option><option value="prohibit">prohibit</option></select></div>
+                                <div class="field"><label for="rtSource">Preferred source</label><input id="rtSource" placeholder="optional IPv4"></div>
+                                <div class="field"><label for="rtMtu">Route MTU</label><input id="rtMtu" type="number" placeholder="optional"></div>
+                                <label class="check"><input id="rtOnlink" type="checkbox">Force gateway on-link</label>
+                            </div>
+                        </div>
+                        <div class="checks"><label class="check"><input id="rtApply" type="checkbox" checked>Commit/reload network</label><label class="check"><input id="rtVerify" type="checkbox" checked>Verification commands</label></div>
+                    </form>
+
+                    <form id="openwrtNatForm" class="hidden">
+                        <div class="section">
+                            <div class="section-title"><strong>NAT operation</strong><span>firewall4</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="nMode">Mode</label><select id="nMode"><option value="port-forward">DNAT / port forwarding</option><option value="masquerade">Selective MASQUERADE</option><option value="snat">Static SNAT</option><option value="zone-masq">Enable zone masquerading</option></select></div>
+                                <div class="field" id="nSectionField"><label for="nSection">UCI section</label><input id="nSection" value="nch_https_forward"></div>
+                                <div class="field span-2"><label for="nName">Name</label><input id="nName" value="HTTPS to internal service"></div>
+                            </div>
+                        </div>
+                        <div id="natPortForwardFields" class="section">
+                            <div class="section-title"><strong>Port forward</strong><span>DNAT redirect</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="nSrcZone">Source zone</label><input id="nSrcZone" value="wan"></div>
+                                <div class="field"><label for="nDestZone">Destination zone</label><input id="nDestZone" value="lan"></div>
+                                <div class="field"><label for="nSrcIp">Allowed source IP/CIDR</label><input id="nSrcIp" placeholder="optional"></div>
+                                <div class="field"><label for="nSrcPort">External port/range</label><input id="nSrcPort" value="443"></div>
+                                <div class="field"><label for="nDestIp">Internal IPv4</label><input id="nDestIp" value="172.16.4.20"></div>
+                                <div class="field"><label for="nDestPort">Internal port/range</label><input id="nDestPort" value="443"></div>
+                                <div class="field"><label for="nProto">Protocol</label><select id="nProto"><option value="tcp">TCP</option><option value="udp">UDP</option><option value="tcp udp">TCP + UDP</option></select></div>
+                            </div>
+                        </div>
+                        <div id="natSourceFields" class="section hidden">
+                            <div class="section-title"><strong>Source NAT</strong><span>Selective source translation</span></div>
+                            <div class="grid-2">
+                                <div class="field"><label for="nSourceCidr">Source CIDR</label><input id="nSourceCidr" value="172.18.45.0/24"></div>
+                                <div class="field"><label for="nDevice">Egress device</label><input id="nDevice" placeholder="optional, e.g. eth0.2"></div>
+                                <div class="field" id="nSnatIpField"><label for="nSnatIp">SNAT IPv4</label><input id="nSnatIp" placeholder="required for static SNAT"></div>
+                            </div>
+                        </div>
+                        <div id="natZoneFields" class="section hidden">
+                            <div class="section-title"><strong>Zone masquerading</strong><span>State-aware Revert requires import</span></div>
+                            <div class="field"><label for="nZoneSection">Firewall UCI zone section</label><input id="nZoneSection" value="wan"><div class="hint">Named section such as <code>wan</code>, or an imported anonymous section such as <code>@zone[1]</code>.</div></div>
+                        </div>
+                        <div class="checks"><label class="check"><input id="nApply" type="checkbox" checked>Commit/reload firewall</label><label class="check"><input id="nVerify" type="checkbox" checked>Verification commands</label></div>
                     </form>
 
                     <form id="openwrtWirelessForm" class="hidden">
@@ -353,11 +649,24 @@
 
                         <div class="grid-2">
                             <div class="field">
+                                <label for="sTarget">Target</label>
+                                <select id="sTarget">
+                                    <option value="single">Standalone / current import</option>
+                                    <option value="sw01">sw01 from switch pair</option>
+                                    <option value="sw02">sw02 from switch pair</option>
+                                    <option value="pair">Both switches (mirror desired change)</option>
+                                </select>
+                                <div class="hint">Pair targets use the memory-only switch-pair imports when available.</div>
+                            </div>
+                            <div class="field">
                                 <label for="sTask">Goal</label>
                                 <select id="sTask">
                                     <option value="trunk">Configure hybrid/trunk port</option>
                                     <option value="access">Configure access port</option>
                                     <option value="vlans">Create VLANs only</option>
+                                    <option value="port">Port manager</option>
+                                    <option value="lacp">LAG / LACP</option>
+                                    <option value="diagnostics">Diagnostics</option>
                                 </select>
                             </div>
                             <div class="field">
@@ -367,7 +676,7 @@
                         </div>
                     </div>
 
-                    <div class="section">
+                    <div class="section" id="netgearVlanFields">
                         <div class="section-title">
                             <strong>VLAN membership</strong>
                             <span>Layer 2</span>
@@ -406,6 +715,125 @@
                             Native VLAN/PVID changes are disabled by default. Adding tagged VLANs to a working trunk is lower risk than rewriting its native VLAN.
                         </div>
                     </div>
+
+                    <div class="section hidden" id="netgearPortFields">
+                        <div class="section-title"><strong>Port manager</strong><span>GS108Tv3 interface configuration</span></div>
+                        <div class="grid-2">
+                            <div class="field span-2"><label for="sPortDescription">Description</label><input id="sPortDescription" placeholder="optional; blank = unchanged"></div>
+                            <div class="field"><label for="sPortAdmin">Admin state</label><select id="sPortAdmin"><option value="unchanged">Unchanged</option><option value="enabled">Enabled</option><option value="disabled">Shutdown</option></select></div>
+                            <div class="field"><label for="sPortSpeed">Speed</label><select id="sPortSpeed"><option value="unchanged">Unchanged</option><option value="auto">Auto 10/100/1000</option><option value="1000">1000 Mbps</option><option value="100">100 Mbps</option><option value="10">10 Mbps</option></select></div>
+                            <div class="field"><label for="sPortFlow">Flow control</label><select id="sPortFlow"><option value="unchanged">Unchanged</option><option value="off">Off</option><option value="auto">Auto</option><option value="symmetric">Symmetric</option><option value="asymmetric">Asymmetric</option></select></div>
+                            <label class="check"><input id="sClearCounters" type="checkbox">Clear interface counters after change</label>
+                        </div>
+                        <div class="notice" style="margin-top:12px">Exact port Revert is generated only when current <code>show running-config</code> state for the interface has been imported. Cleared counters cannot be restored.</div>
+                    </div>
+
+                    <div class="section hidden" id="netgearLagFields">
+                        <div class="section-title"><strong>LAG / LACP</strong><span>Link aggregation</span></div>
+                        <div class="grid-2">
+                            <div class="field"><label for="sLagId">LAG ID</label><input id="sLagId" type="number" min="1" value="1"></div>
+                            <div class="field"><label for="sLagMode">Mode</label><select id="sLagMode"><option value="active">LACP active</option><option value="passive">LACP passive</option><option value="static">Static</option></select></div>
+                            <div class="field span-2"><label for="sLagMembers">Member ports</label><input id="sLagMembers" value="g1-2"><div class="hint">GS108Tv3 examples: <code>g1-2</code>, <code>g1,g3</code>.</div></div>
+                        </div>
+                        <div class="notice" style="margin-top:12px">Changing LAG membership is high risk because links may reconverge. Import current running configuration for exact member-by-member rollback.</div>
+                    </div>
+
+                    <div class="section hidden" id="netgearDiagFields">
+                        <div class="section-title"><strong>Diagnostics</strong><span>Read-only command bundles</span></div>
+                        <div class="grid-2">
+                            <div class="field"><label for="sDiagMode">Bundle</label><select id="sDiagMode"><option value="overview">Overview</option><option value="port">Port</option><option value="vlan">VLAN / L3</option><option value="topology">LLDP / STP topology</option><option value="security">Security / logging</option><option value="troubleshooting">Full troubleshooting</option></select></div>
+                            <div class="field"><label for="sDiagVlan">VLAN</label><input id="sDiagVlan" type="number" min="1" max="4094" value="45"></div>
+                            <div class="field span-2"><label for="sDiagTarget">Ping target</label><input id="sDiagTarget" value="172.16.0.1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="redundancyWorkspace" class="hidden">
+                    <div class="section">
+                        <div class="section-title"><strong>Switch pair</strong><span>v1.8 · mirrored desired state + drift</span></div>
+                        <div class="grid-2">
+                            <div class="field"><label for="rdName">Pair name</label><input id="rdName" value="access-pair-01"></div>
+                            <div class="field"><label for="rdAuthority">Remediation authority</label><select id="rdAuthority"><option value="sw01">sw01 → sw02</option><option value="sw02">sw02 → sw01</option></select></div>
+                            <div class="field"><label for="rdSw1Name">Switch 1</label><input id="rdSw1Name" value="sw01"></div>
+                            <div class="field"><label for="rdSw1Mgmt">Switch 1 management IP</label><input id="rdSw1Mgmt" value="172.16.0.3"></div>
+                            <div class="field"><label for="rdSw2Name">Switch 2</label><input id="rdSw2Name" value="sw02"></div>
+                            <div class="field"><label for="rdSw2Mgmt">Switch 2 management IP</label><input id="rdSw2Mgmt" value="172.16.0.4"></div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><strong>Pair current state</strong><span>memory-only · complete running-config preferred</span></div>
+                        <div class="grid-2">
+                            <div class="field"><label for="rdSw1Config">sw01 show running-config</label><textarea id="rdSw1Config" rows="9" placeholder="! Model: GS108Tv3
+...show running-config output..."></textarea></div>
+                            <div class="field"><label for="rdSw2Config">sw02 show running-config</label><textarea id="rdSw2Config" rows="9" placeholder="! Model: GS108Tv3
+...show running-config output..."></textarea></div>
+                        </div>
+                        <div class="actions inline-actions" style="margin-top:12px">
+                            <button type="button" class="btn primary" id="parsePair">Parse switch pair</button>
+                            <button type="button" class="btn secondary" id="clearPair">Clear pair state</button>
+                        </div>
+                        <div class="hint" id="pairImportStatus">No pair state imported. Pair running-configs are never saved to localStorage.</div>
+                    </div>
+
+                    <div class="section" data-level="advanced">
+                        <div class="section-title"><strong>Mirror policy</strong><span>Choose what should be equivalent</span></div>
+                        <div class="checks redundancy-checks">
+                            <label class="check"><input id="rdMirrorVlans" type="checkbox" checked>VLAN definitions</label>
+                            <label class="check"><input id="rdMirrorVlanNames" type="checkbox" checked>VLAN names</label>
+                            <label class="check"><input id="rdMirrorMgmtVlan" type="checkbox" checked>Management VLAN</label>
+                            <label class="check"><input id="rdMirrorNetmask" type="checkbox" checked>Management netmask</label>
+                            <label class="check"><input id="rdMirrorGateway" type="checkbox" checked>Default gateway</label>
+                            <label class="check"><input id="rdMirrorSystemName" type="checkbox">System name</label>
+                            <label class="check"><input id="rdMirrorPortPvid" type="checkbox" checked>Port PVID</label>
+                            <label class="check"><input id="rdMirrorTagged" type="checkbox" checked>Tagged VLANs</label>
+                            <label class="check"><input id="rdMirrorUntagged" type="checkbox" checked>Untagged VLANs</label>
+                            <label class="check"><input id="rdMirrorAdmin" type="checkbox" checked>Admin state</label>
+                            <label class="check"><input id="rdMirrorSpeed" type="checkbox" checked>Port speed</label>
+                            <label class="check"><input id="rdMirrorFlow" type="checkbox" checked>Flow control</label>
+                            <label class="check"><input id="rdMirrorLag" type="checkbox" checked>Local LAG membership</label>
+                            <label class="check"><input id="rdMirrorDescriptions" type="checkbox">Port descriptions</label>
+                        </div>
+                        <div class="notice info" style="margin-top:12px">Management IP is always treated as an expected per-switch identity difference. System name and port descriptions are ignored by default.</div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><strong>Port policy</strong><span>Mirror, independent exception, or redundancy-ready</span></div>
+                        <div class="port-policy-table" role="table" aria-label="Switch pair port policies">
+                            <div class="port-policy-row header" role="row"><span>Port</span><span>Policy</span><span>Role / endpoint</span></div>
+                            <div class="port-policy-row" role="row"><strong>g1</strong><select id="rdG1Mode"><option value="mirror">Mirror</option><option value="exception" selected>Independent / exception</option><option value="redundancy">Redundancy-ready</option></select><input id="rdG1Role" placeholder="e.g. pve1" value=""></div>
+                            <div class="port-policy-row" role="row"><strong>g2</strong><select id="rdG2Mode"><option value="mirror">Mirror</option><option value="exception" selected>Independent / exception</option><option value="redundancy">Redundancy-ready</option></select><input id="rdG2Role" placeholder="e.g. pve2" value=""></div>
+                            <div class="port-policy-row" role="row"><strong>g3</strong><select id="rdG3Mode"><option value="mirror">Mirror</option><option value="exception" selected>Independent / exception</option><option value="redundancy">Redundancy-ready</option></select><input id="rdG3Role" placeholder="e.g. pve3" value=""></div>
+                            <div class="port-policy-row" role="row"><strong>g4</strong><select id="rdG4Mode"><option value="mirror">Mirror</option><option value="exception" selected>Independent / exception</option><option value="redundancy">Redundancy-ready</option></select><input id="rdG4Role" placeholder="e.g. pve" value=""></div>
+                            <div class="port-policy-row" role="row"><strong>g5</strong><select id="rdG5Mode"><option value="mirror">Mirror</option><option value="exception" selected>Independent / exception</option><option value="redundancy">Redundancy-ready</option></select><input id="rdG5Role" placeholder="e.g. pve" value=""></div>
+                            <div class="port-policy-row" role="row"><strong>g6</strong><select id="rdG6Mode"><option value="mirror">Mirror</option><option value="exception" selected>Independent / exception</option><option value="redundancy">Redundancy-ready</option></select><input id="rdG6Role" placeholder="e.g. pve" value=""></div>
+                            <div class="port-policy-row" role="row"><strong>g7</strong><select id="rdG7Mode"><option value="mirror">Mirror</option><option value="exception" selected>Independent / exception</option><option value="redundancy">Redundancy-ready</option></select><input id="rdG7Role" placeholder="e.g. pve" value=""></div>
+                            <div class="port-policy-row" role="row"><strong>g8</strong><select id="rdG8Mode"><option value="mirror">Mirror</option><option value="exception">Independent / exception</option><option value="redundancy">Redundancy-ready</option></select><input id="rdG8Role" placeholder="e.g. pve" value="router trunk"></div>
+                        </div>
+                        <div class="notice" style="margin-top:12px"><strong>Redundancy-ready</strong> expects the same PVID/tagged/untagged/admin policy on both same-numbered ports and flags local LAG membership. Use <strong>Independent / exception</strong> when a sw02 port is intentionally used for something different.</div>
+                    </div>
+
+                    <div class="section" data-level="expert">
+                        <label class="check"><input id="rdAllowDestructive" type="checkbox">Allow remediation to remove extra VLANs from the target switch</label>
+                        <div class="notice" style="margin-top:12px">Destructive pair reconciliation is disabled by default. Extra VLANs are reported as drift but retained unless this is explicitly enabled.</div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><strong>Pair drift</strong><span id="pairDriftSummary">Import both switches to compare.</span></div>
+                        <ul id="pairDriftList" class="diff-list"><li>No pair comparison available.</li></ul>
+                        <div class="hint">The command pane generates remediation from the selected authority to its peer while respecting mirror-policy and port exceptions.</div>
+                    </div>
+                </div>
+
+                <div class="section plan-builder">
+                    <div class="section-title"><strong>Configuration Plan</strong><span>v2.0 · desired-state compiler</span></div>
+                    <div class="actions plan-actions">
+                        <button type="button" class="btn primary" id="addToPlan">Add current change</button>
+                        <button type="button" class="btn secondary" id="previewPlan">Preview plan</button>
+                        <button type="button" class="btn secondary" id="clearPlan">Clear plan</button>
+                    </div>
+                    <ol id="planList" class="plan-list"><li class="muted-item">No changes in plan.</li></ol>
+                    <div class="hint">Plan state is memory-only. Apply is dependency-ordered; Revert is generated in reverse order.</div>
                 </div>
 
             </div>
@@ -413,7 +841,13 @@
 
         <section class="card preview-panel" aria-label="Generated plan">
             <div class="visual">
-                <div class="topology" id="openwrtVisual">
+                <div class="topology" id="intentVisual">
+                    <div class="node"><strong id="intentVisualNetwork">VLAN 120 / monitoring</strong><small id="intentVisualSubnet">172.18.120.0/24</small></div>
+                    <div class="links"><div class="link"><span class="line"></span><span>desired state</span></div><div class="link"><span class="line"></span><span id="intentVisualSteps">3 targets</span></div></div>
+                    <div class="node"><strong>Cross-device plan</strong><small id="intentVisualDevices">SWS-Router2 + sw01 + sw02</small><div class="pills" id="intentVisualPills"><span class="pill warn">Import state for exact Revert</span></div></div>
+                </div>
+
+                <div class="topology hidden" id="openwrtVisual">
                     <div class="node">
                         <strong id="visualSource">VLAN 45 / setup</strong>
                         <small id="visualSourceDetail">172.18.45.0/24</small>
@@ -429,6 +863,12 @@
                         <small id="visualTargetDetail">eth2.45 → br-vlan45</small>
                         <div class="pills" id="visualPills"></div>
                     </div>
+                </div>
+
+                <div class="topology hidden" id="redundancyVisual">
+                    <div class="node"><strong id="pairVisualSw1">sw01</strong><small id="pairVisualSw1Detail">172.16.0.3</small></div>
+                    <div class="links"><div class="link"><span class="line"></span><span>mirror policy</span></div><div class="link"><span class="line"></span><span id="pairVisualDrift">drift unknown</span></div></div>
+                    <div class="node"><strong id="pairVisualSw2">sw02</strong><small id="pairVisualSw2Detail">172.16.0.4</small><div class="pills" id="pairVisualPills"><span class="pill warn">Import both configs</span></div></div>
                 </div>
 
                 <div class="topology hidden" id="netgearVisual">
@@ -459,9 +899,29 @@
                 </div>
             </div>
 
+            <div class="diff-panel">
+                <div class="diff-head"><strong>Current → desired diff</strong><small id="diffSummary">No current configuration imported.</small></div>
+                <ul id="diffList" class="diff-list"><li>No diff available.</li></ul>
+            </div>
+
+            <div class="preview-mode-bar">
+                <div class="segmented compact" role="group" aria-label="Preview scope">
+                    <button type="button" class="segment active" data-preview-mode="current" id="currentPreview">Current task</button>
+                    <button type="button" class="segment" data-preview-mode="plan" id="planPreview">Configuration plan</button>
+                </div>
+            </div>
+
+            <div class="output-mode-bar">
+                <div class="segmented compact" role="group" aria-label="Generated output mode">
+                    <button type="button" class="segment active" data-output-mode="apply" id="applyOutput">Apply</button>
+                    <button type="button" class="segment" data-output-mode="rollback" id="rollbackOutput">Revert</button>
+                </div>
+                <small id="rollbackState">Revert availability depends on the selected generator.</small>
+            </div>
+
             <div class="toolbar">
                 <div>
-                    <strong>Generated commands</strong>
+                    <strong id="outputTitle">Apply commands</strong>
                     <small id="status">Validated locally</small>
                 </div>
                 <div class="actions">
@@ -477,7 +937,7 @@
 
     <div class="footer">
         <span>State is stored only in this browser.</span>
-        <span>v1.1.0 · OpenWrt VLAN + Wireless · NETGEAR VLAN/ports</span>
+        <span>v2.0.0 · cross-device network intent · desired-state compiler · state-aware Revert</span>
     </div>
 </div>
 </body>

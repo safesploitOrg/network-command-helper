@@ -1,0 +1,14 @@
+{
+  "name": "network-command-helper",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Static browser-based desired-state network compiler for OpenWrt and NETGEAR with cross-device intent, diff, risk, apply and rollback runbooks.",
+  "scripts": {
+    "test": "node --test --test-reporter=spec tests/*.test.js",
+    "test:smoke": "node tests/smoke.js",
+    "ci": "npm test && npm run test:smoke"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

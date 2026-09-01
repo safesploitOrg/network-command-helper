@@ -1,0 +1,87 @@
+name: NETGEAR GS108Tv3 firmware emulation (DISABLED)
+
+# Intentionally manual-only. There are no push, pull_request, schedule, or
+# workflow_call triggers. The real emulation job is additionally gated by the
+# NETGEAR_FIRMWARE_CI_ENABLED repository variable and an explicit confirmation.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_firmware_emulation:
+        description: "I understand this is experimental firmware emulation on a privileged self-hosted runner"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: netgear-firmware-emulation
+  cancel-in-progress: false
+
+jobs:
+  disabled-status:
+    name: Disabled-by-default status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain enablement gate
+        shell: bash
+        run: |
+          echo "NETGEAR GS108Tv3 firmware emulation is intentionally disabled by default."
+          echo "The emulation job only runs when BOTH conditions are true:"
+          echo "  1. Repository variable NETGEAR_FIRMWARE_CI_ENABLED is exactly 'true'."
+          echo "  2. The manual workflow-dispatch confirmation box is checked."
+          echo "See emulation/netgear-firmware/README.md before enabling it."
+
+  firmware-emulation:
+    name: FirmAE emulation smoke
+    needs: disabled-status
+    if: ${{ vars.NETGEAR_FIRMWARE_CI_ENABLED == 'true' && inputs.confirm_firmware_emulation == true }}
+
+    # Deliberately self-hosted. FirmAE uses Docker/QEMU and privileged network
+    # emulation; do not move this to a normal GitHub-hosted runner without first
+    # reviewing and testing its privilege/network requirements.
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - netgear-firmware
+
+    timeout-minutes: 120
+
+    env:
+      NETGEAR_FIRMWARE_URL: ${{ vars.NETGEAR_GS108TV3_FIRMWARE_URL }}
+      NETGEAR_FIRMWARE_SHA256: ${{ vars.NETGEAR_GS108TV3_FIRMWARE_SHA256 }}
+      FIRMAE_REF: ${{ vars.FIRMAE_REF }}
+      FIRMAE_BRAND: netgear
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate experimental CI inputs and runner
+        shell: bash
+        run: ./emulation/netgear-firmware/ci/preflight.sh
+
+      - name: Download and verify vendor firmware
+        id: firmware
+        shell: bash
+        run: ./emulation/netgear-firmware/ci/download-firmware.sh
+
+      - name: Prepare current FirmAE source and Docker image
+        shell: bash
+        run: ./emulation/netgear-firmware/ci/setup-firmae.sh
+
+      - name: Run FirmAE emulation check
+        shell: bash
+        run: ./emulation/netgear-firmware/ci/run-emulation.sh
+
+      - name: Print result location
+        if: always()
+        shell: bash
+        run: |
+          echo "FirmAE workspace: ${FIRMAE_HOME:-${RUNNER_TEMP}/FirmAE}"
+          echo "Firmware path: ${NETGEAR_FIRMWARE_PATH:-not-created}"
+          echo "Future work: attach firmware CLI reachability/smoke tests after GS108Tv3 emulation is proven."

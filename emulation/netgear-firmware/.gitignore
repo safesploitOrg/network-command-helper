@@ -1,0 +1,10 @@
+# Never commit downloaded/proprietary firmware or local FirmAE workspaces.
+firmware/
+work/
+FirmAE/
+*.bin
+*.img
+*.chk
+*.stk
+*.trx
+*.fw

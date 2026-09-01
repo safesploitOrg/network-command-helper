@@ -1,16 +1,54 @@
 window.NCH = window.NCH || {};
 
 NCH.config = {
-    version: "1.1.0",
+    version: "2.0.0",
 
     levels: ["simple", "advanced", "expert"],
 
     defaults: {
         app: {
             level: "simple",
-            device: "openwrt",
+            device: "intent",
             openwrtTask: "vlan",
-            preset: "custom"
+            netgearTask: "trunk",
+            preset: "custom",
+            outputMode: "apply",
+            previewMode: "current"
+        },
+
+        networkIntent: {
+            iName: "monitoring",
+            iVlan: "120",
+            iSubnet: "172.18.120.0/24",
+            iGateway: "172.18.120.254",
+            iZone: "monitoring",
+            iRouterName: "SWS-Router2",
+            iTargetOpenwrt: true,
+            iTargetSw01: true,
+            iTargetSw02: true,
+            iSw1Name: "sw01",
+            iSw2Name: "sw02",
+            iSw1Port: "g8",
+            iSw2Port: "g8",
+            iNativeVlan: "1",
+            iDhcpStart: "100",
+            iDhcpLimit: "100",
+            iLease: "12h",
+            iInputPolicy: "REJECT",
+            iAllow: "",
+            iDeny: "",
+            iWan: false,
+            iLan: false,
+            iDhcp: true,
+            iDns: true,
+            iPing: true,
+            iApplyRouter: true,
+            iSaveSwitches: true,
+            iVerify: true,
+            iParent: "eth2",
+            iSwitch: "switch0",
+            iCpu: "0t",
+            iBridge: ""
         },
 
         openwrtVlan: {
@@ -38,6 +76,44 @@ NCH.config = {
             rBridge: "br-vlan45"
         },
 
+        openwrtFirewall: {
+            fKind: "rule",
+            fSection: "nch_allow_setup_dns",
+            fName: "Allow Setup DNS",
+            fSrcZone: "setup",
+            fDestZone: "",
+            fSrcIp: "",
+            fDestIp: "",
+            fSrcPort: "",
+            fDestPort: "53",
+            fProto: "tcp udp",
+            fTarget: "ACCEPT",
+            fEnabled: true,
+            fApply: true,
+            fVerify: true
+        },
+
+        openwrtDhcpDns: {
+            dMode: "pool-options",
+            dPool: "setup",
+            dGateway: "172.18.45.254",
+            dDnsServers: "172.16.5.22",
+            dNtpServers: "",
+            dLeaseSection: "nch_test_server",
+            dHostName: "test-server",
+            dMac: "00:11:22:33:44:55",
+            dLeaseIp: "172.18.45.10",
+            dLeaseDns: true,
+            dDnsmasq: "@dnsmasq[0]",
+            dForwardDomain: "safesploit.com",
+            dForwardServers: "172.16.5.22",
+            dRecordSection: "nch_local_record",
+            dRecordName: "router.safesploit.com",
+            dRecordIp: "172.16.0.1",
+            dApply: true,
+            dVerify: true
+        },
+
         openwrtWireless: {
             wSection: "wifi_guests",
             wSsid: "wifi-guests",
@@ -60,15 +136,101 @@ NCH.config = {
             wVerify: true
         },
 
+        openwrtRouting: {
+            rtSection: "nch_route_setup",
+            rtInterface: "lan",
+            rtTarget: "172.18.45.0/24",
+            rtGateway: "172.16.0.2",
+            rtMetric: "10",
+            rtTable: "main",
+            rtSource: "",
+            rtType: "unicast",
+            rtMtu: "",
+            rtOnlink: false,
+            rtApply: true,
+            rtVerify: true
+        },
+
+        openwrtNat: {
+            nMode: "port-forward",
+            nSection: "nch_https_forward",
+            nName: "HTTPS to internal service",
+            nSrcZone: "wan",
+            nDestZone: "lan",
+            nSrcIp: "",
+            nSrcPort: "443",
+            nDestIp: "172.16.4.20",
+            nDestPort: "443",
+            nProto: "tcp",
+            nSourceCidr: "172.18.45.0/24",
+            nSnatIp: "",
+            nDevice: "",
+            nZoneSection: "wan",
+            nApply: true,
+            nVerify: true
+        },
+
         netgear: {
+            sTarget: "single",
             sTask: "trunk",
             sPort: "g8",
             sNative: "1",
             sTagged: "10-12,45",
             sNames: "10=wifi-admins\n11=wifi-users\n12=wifi-guests\n45=setup",
             sNativeTouch: false,
+            sPortDescription: "",
+            sPortAdmin: "unchanged",
+            sPortSpeed: "unchanged",
+            sPortFlow: "unchanged",
+            sClearCounters: false,
+            sLagId: "1",
+            sLagMembers: "g1-2",
+            sLagMode: "active",
+            sDiagMode: "overview",
+            sDiagVlan: "45",
+            sDiagTarget: "172.16.0.1",
             sVerify: true,
             sSave: true
+        },
+
+
+        redundancy: {
+            rdName: "access-pair-01",
+            rdSw1Name: "sw01",
+            rdSw1Mgmt: "172.16.0.3",
+            rdSw2Name: "sw02",
+            rdSw2Mgmt: "172.16.0.4",
+            rdAuthority: "sw01",
+            rdMirrorVlans: true,
+            rdMirrorVlanNames: true,
+            rdMirrorMgmtVlan: true,
+            rdMirrorNetmask: true,
+            rdMirrorGateway: true,
+            rdMirrorSystemName: false,
+            rdMirrorPortPvid: true,
+            rdMirrorTagged: true,
+            rdMirrorUntagged: true,
+            rdMirrorAdmin: true,
+            rdMirrorSpeed: true,
+            rdMirrorFlow: true,
+            rdMirrorLag: true,
+            rdMirrorDescriptions: false,
+            rdAllowDestructive: false,
+            rdG1Mode: "exception", rdG1Role: "",
+            rdG2Mode: "exception", rdG2Role: "",
+            rdG3Mode: "exception", rdG3Role: "",
+            rdG4Mode: "exception", rdG4Role: "",
+            rdG5Mode: "exception", rdG5Role: "",
+            rdG6Mode: "exception", rdG6Role: "",
+            rdG7Mode: "exception", rdG7Role: "",
+            rdG8Mode: "mirror", rdG8Role: "router trunk"
+        },
+
+        importState: {
+            importFormat: "auto",
+            importConfig: ""
         }
-    }
+    },
+
+    secrets: ["wKey", "wRadiusSecret"]
 };

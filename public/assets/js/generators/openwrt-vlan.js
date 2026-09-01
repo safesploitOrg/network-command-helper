@@ -4,12 +4,14 @@ NCH.generators = NCH.generators || {};
 NCH.generators.openwrtVlan = (() => {
     const U = () => NCH.utils;
 
-    function generate(values) {
+    function generate(values, context = {}) {
         const utils = U();
         const commands = [];
         const summary = [];
         const risks = [];
         const errors = [];
+        const resources = [];
+        const rollbackCommands = [];
 
         const vlan = utils.clamp(values.rVlan, 1, 4094, 45);
         const name = utils.safeName(values.rName, `vlan${vlan}`);
@@ -394,11 +396,50 @@ NCH.generators.openwrtVlan = (() => {
             );
         }
 
+        resources.push(
+            { kind: "uci-section", platform: "openwrt", package: "network", section: `vlan${vlan}_switch`, type: "switch_vlan", options: { device: switchDevice, vlan: String(vlan), description: name, ports: switchPorts } },
+            { kind: "uci-section", platform: "openwrt", package: "network", section: `vlan${vlan}_dev`, type: "device", options: { type: "8021q", ifname: parent, vid: String(vlan), name: vlanDevice } },
+            { kind: "uci-section", platform: "openwrt", package: "network", section: `br_vlan${vlan}_dev`, type: "device", options: { type: "bridge", name: bridge, bridge_empty: "1", ports: [vlanDevice] } },
+            { kind: "uci-section", platform: "openwrt", package: "network", section, type: "interface", options: { proto: "static", device: bridge, ipaddr: gateway, netmask } },
+            { kind: "uci-section", platform: "openwrt", package: "dhcp", section, type: "dhcp", options: { interface: section, start: String(dhcpStart), limit: String(dhcpLimit), leasetime: lease } },
+            { kind: "uci-section", platform: "openwrt", package: "firewall", section: zone, type: "zone", options: { name: zone, input: inputPolicy, output: "ACCEPT", forward: "REJECT", network: [section] } }
+        );
+        denyCidrs.forEach((cidr, index) => resources.push({ kind: "uci-section", platform: "openwrt", package: "firewall", section: `${zone}_deny_${index + 1}`, type: "rule", options: { src: zone, dest: "*", dest_ip: cidr, family: "ipv4", proto: "all", target: "REJECT" } }));
+        allowCidrs.forEach((cidr, index) => resources.push({ kind: "uci-section", platform: "openwrt", package: "firewall", section: `${zone}_allow_${index + 1}`, type: "rule", options: { src: zone, dest: "*", dest_ip: cidr, family: "ipv4", proto: "all", target: "ACCEPT" } }));
+        if (values.rWan) resources.push({ kind: "uci-section", platform: "openwrt", package: "firewall", section: `${zone}_wan`, type: "forwarding", options: { src: zone, dest: "wan" } });
+        if (values.rLan) resources.push({ kind: "uci-section", platform: "openwrt", package: "firewall", section: `${zone}_lan`, type: "forwarding", options: { src: zone, dest: "lan" } });
+        if (values.rDhcp) resources.push({ kind: "uci-section", platform: "openwrt", package: "firewall", section: `${zone}_dhcp`, type: "rule", options: { src: zone, family: "ipv4", proto: "udp", dest_port: "67", target: "ACCEPT" } });
+        if (values.rDns) resources.push({ kind: "uci-section", platform: "openwrt", package: "firewall", section: `${zone}_dns`, type: "rule", options: { src: zone, family: "ipv4", proto: "tcp udp", dest_port: "53", target: "ACCEPT" } });
+        if (values.rPing) resources.push({ kind: "uci-section", platform: "openwrt", package: "firewall", section: `${zone}_ping`, type: "rule", options: { src: zone, family: "ipv4", proto: "icmp", icmp_type: "echo-request", target: "ACCEPT" } });
+
+        const restore = NCH.rollback.restoreManyUci(context.currentState, resources);
+        const rollbackExact = Boolean(restore);
+        if (restore) {
+            rollbackCommands.push(
+                "#!/bin/sh", "",
+                `# State-aware Revert for VLAN ${vlan} / ${name}`,
+                ...restore,
+                "uci commit network",
+                "uci commit dhcp",
+                "uci commit firewall",
+                "fw4 print >/dev/null || exit 1",
+                "/etc/init.d/network reload",
+                "/etc/init.d/dnsmasq restart",
+                "/etc/init.d/firewall reload",
+                "",
+                `echo ${utils.shellSingleQuote(`PASS: previous VLAN ${vlan} state restored`)}`
+            );
+        }
+
         return {
             commands,
+            rollbackCommands,
+            rollbackExact,
+            rollbackNote: rollbackExact ? "Exact Revert derived from imported OpenWrt current state." : "Import current OpenWrt UCI state before changing an existing VLAN to generate an exact Revert.",
             summary,
             risks,
             errors,
+            resources,
             meta: {
                 vlan,
                 name,
@@ -412,7 +453,8 @@ NCH.generators.openwrtVlan = (() => {
                 inputPolicy,
                 allowCidrs,
                 denyCidrs
-            }
+            },
+            plan: { title: `OpenWrt VLAN ${vlan} / ${name}`, platform: "openwrt", task: "vlan", order: 20, mutating: true }
         };
     }
 
